@@ -1,0 +1,77 @@
+{
+  "store": {
+    "name": "Adonia",
+    "currency": "USD"
+  },
+  "updatedAt": "2026-09-20T09:00:00Z",
+  "products": [
+    {
+      "id": "AD-1001",
+      "name": "Aura Wireless Headphones",
+      "description": "Over-ear Bluetooth headphones with active noise cancelling and 40-hour battery life.",
+      "price": 129.9,
+      "category": "Electronics",
+      "image": "images/headphones.jpg",
+      "stock": 14
+    },
+    {
+      "id": "AD-1002",
+      "name": "Velocity Running Sneakers",
+      "description": "Lightweight breathable mesh trainers with a responsive foam midsole.",
+      "price": 84.5,
+      "category": "Footwear",
+      "image": "images/sneakers.jpg",
+      "stock": 3
+    },
+    {
+      "id": "AD-1003",
+      "name": "Terracotta Ceramic Mug",
+      "description": "Hand-glazed 350 ml stoneware mug. Dishwasher and microwave safe.",
+      "price": 18,
+      "category": "Home",
+      "image": "images/mug.jpg",
+      "stock": 60
+    },
+    {
+      "id": "AD-1004",
+      "name": "Trek Canvas Backpack",
+      "description": "22 L water-resistant canvas daypack with a padded 15-inch laptop sleeve.",
+      "price": 59.99,
+      "category": "Bags",
+      "image": "images/backpack.jpg",
+      "stock": 0
+    },
+    {
+      "id": "AD-1005",
+      "name": "USB-C Fast Charger 65W",
+      "description": "Compact GaN wall charger with two USB-C ports and one USB-A port.",
+      "price": 34.75,
+      "category": "Electronics",
+      "stock": 25
+    },
+    {
+      "id": "AD-1006",
+      "name": "Braided Nylon Watch Band",
+      "description": "Adjustable 22 mm woven band with quick-release spring bars.",
+      "price": 22.4,
+      "category": "Accessories",
+      "stock": 41
+    },
+    {
+      "id": "AD-1007",
+      "name": "Insulated Steel Water Bottle",
+      "description": "750 ml double-wall bottle that keeps drinks cold for 24 hours.",
+      "price": 27,
+      "category": "Home",
+      "stock": 18
+    },
+    {
+      "id": "AD-1008",
+      "name": "Everyday Cotton T-Shirt",
+      "description": "Mid-weight combed cotton tee with a reinforced crew neck.",
+      "price": 15.9,
+      "category": "Clothing",
+      "stock": 120
+    }
+  ]
+}
