@@ -31,9 +31,17 @@
   var cartDialog = document.getElementById("cartDialog");
   var cartItems = document.getElementById("cartItems");
   var dialogTotal = document.getElementById("dialogTotal");
+  var dialogSavings = document.getElementById("dialogSavings");
+  var dialogSavingsTotal = document.getElementById("dialogSavingsTotal");
   var closeCart = document.getElementById("closeCart");
   var closeCart2 = document.getElementById("closeCart2");
   var clearCart = document.getElementById("clearCart");
+
+  var itemDialog = document.getElementById("itemDialog");
+  var itemDialogTitle = document.getElementById("itemDialogTitle");
+  var itemDialogContent = document.getElementById("itemDialogContent");
+  var itemDialogActions = document.getElementById("itemDialogActions");
+  var closeItemDialog = document.getElementById("closeItemDialog");
 
   // ---------------------------------------------------------------------------
   // Data
@@ -114,15 +122,130 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Formatting & Helpers
+  // ---------------------------------------------------------------------------
+
+  function toPersianDigits(n) {
+    if (n === null || n === undefined) return "";
+    return String(n).replace(/[0-9]/g, function (d) {
+      return "۰۱۲۳۴۵۶۷۸۹"[d];
+    });
+  }
+
+  function normalizeDigits(s) {
+    if (!s) return "";
+    return String(s)
+      .replace(/[۰-۹]/g, function (d) { return "۰۱۲۳۴۵۶۷۸۹".indexOf(d); })
+      .replace(/[٠-٩]/g, function (d) { return "٠١٢٣٤٥٦٧٨٩".indexOf(d); });
+  }
+
+  function faNumber(n) {
+    try {
+      return Number(n).toLocaleString("fa-IR");
+    } catch (e) {
+      return String(n);
+    }
+  }
+
+  function formatPrice(toman) {
+    return faNumber(toman) + " تومان";
+  }
+
+  function formatDiffPercentage(diff) {
+    if (!diff) return "";
+    var s = String(diff).trim();
+    return toPersianDigits(s).replace(/%/g, "٪");
+  }
+
+  function formatDateTime(ts) {
+    if (!ts) return "";
+    try {
+      var d = new Date(ts);
+      if (isNaN(d.getTime())) return String(ts);
+      return d.toLocaleString("fa-IR", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    } catch (e) {
+      return String(ts);
+    }
+  }
+
+  function formatDateTimeFull(ts) {
+    if (!ts) return "";
+    try {
+      var d = new Date(ts);
+      if (isNaN(d.getTime())) return String(ts);
+      return d.toLocaleString("fa-IR", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    } catch (e) {
+      return String(ts);
+    }
+  }
+
+  function copyToClipboard(text, el, feedbackText) {
+    if (!text) return;
+    var originalText = el ? el.textContent : "";
+    function showFeedback() {
+      if (el) {
+        el.textContent = feedbackText || "کپی شد! ✓";
+        setTimeout(function () {
+          el.textContent = originalText;
+        }, 1500);
+      }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(String(text)).then(showFeedback, function () {
+        fallbackCopy(String(text), showFeedback);
+      });
+    } else {
+      fallbackCopy(String(text), showFeedback);
+    }
+  }
+
+  function fallbackCopy(text, cb) {
+    try {
+      var textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      if (cb) cb();
+    } catch (e) { /* ignore */ }
+  }
+
+  // ---------------------------------------------------------------------------
   // Rendering
   // ---------------------------------------------------------------------------
 
   function filtered() {
-    var q = state.query.trim();
+    var q = state.query.trim().toLowerCase();
     if (!q) return state.products;
+    var qNorm = normalizeDigits(q);
     return state.products.filter(function (p) {
-      return (p.name && p.name.indexOf(q) !== -1) ||
-        (p.barcode && p.barcode.indexOf(q) !== -1);
+      var nameMatch = p.name && p.name.toLowerCase().indexOf(q) !== -1;
+      var barcodeMatch = p.barcode && (
+        p.barcode.indexOf(q) !== -1 ||
+        p.barcode.indexOf(qNorm) !== -1
+      );
+      var storeMatch = p.storeName && p.storeName.toLowerCase().indexOf(q) !== -1;
+      var refMatch = p.priceSourceRef && (
+        String(p.priceSourceRef).indexOf(q) !== -1 ||
+        String(p.priceSourceRef).indexOf(qNorm) !== -1
+      );
+      return nameMatch || barcodeMatch || storeMatch || refMatch;
     });
   }
 
@@ -164,12 +287,16 @@
       var card = document.createElement("article");
       card.className = "card";
 
+      // Product Image
       if (p.imageUrl) {
         var img = document.createElement("img");
         img.className = "card-img";
         img.loading = "lazy";
-        img.alt = "";
+        img.alt = p.name || "";
         img.src = p.imageUrl;
+        img.style.cursor = "pointer";
+        img.title = "مشاهده مشخصات کامل محصول";
+        img.addEventListener("click", function () { openItemDialog(p); });
         img.onerror = function () { img.remove(); card.prepend(placeholder()); };
         card.appendChild(img);
       } else {
@@ -179,16 +306,150 @@
       var body = document.createElement("div");
       body.className = "card-body";
 
+      // 1. Tags: Store Name & Diff Percentage
+      if (p.storeName || p.diffPercentage) {
+        var tags = document.createElement("div");
+        tags.className = "card-tags";
+
+        if (p.storeName) {
+          var storeTag = document.createElement("span");
+          storeTag.className = "tag-store";
+          storeTag.title = "فروشگاه مبدأ: " + p.storeName;
+          storeTag.textContent = "🏪 " + p.storeName;
+          tags.appendChild(storeTag);
+        }
+
+        if (p.diffPercentage) {
+          var diffTag = document.createElement("span");
+          diffTag.className = "tag-diff";
+          diffTag.title = "درصد اختلاف قیمت نسبت به مبدأ";
+          diffTag.textContent = formatDiffPercentage(p.diffPercentage);
+          tags.appendChild(diffTag);
+        }
+
+        body.appendChild(tags);
+      }
+
+      // 2. Name
       var name = document.createElement("h3");
       name.className = "card-name";
       name.textContent = p.name;
+      name.style.cursor = "pointer";
+      name.title = p.name + " (مشاهده مشخصات کامل)";
+      name.addEventListener("click", function () { openItemDialog(p); });
       body.appendChild(name);
 
-      var price = document.createElement("p");
-      price.className = "card-price";
-      price.textContent = formatPrice(p.price);
-      body.appendChild(price);
+      // 3. Pricing Section
+      var pricing = document.createElement("div");
+      pricing.className = "card-pricing";
 
+      var priceRow = document.createElement("div");
+      priceRow.className = "card-price-row";
+      var priceLabel = document.createElement("span");
+      priceLabel.className = "price-label";
+      priceLabel.textContent = "قیمت:";
+      var priceVal = document.createElement("strong");
+      priceVal.className = "card-price";
+      priceVal.textContent = formatPrice(p.price);
+      priceRow.appendChild(priceLabel);
+      priceRow.appendChild(priceVal);
+      pricing.appendChild(priceRow);
+
+      if (p.sourcePrice != null && p.sourcePrice !== p.price) {
+        var sourceRow = document.createElement("div");
+        sourceRow.className = "card-source-row";
+        var sourceLabel = document.createElement("span");
+        sourceLabel.className = "source-label";
+        sourceLabel.textContent = "قیمت در " + (p.storeName || "مبدأ") + ":";
+        var sourceVal = document.createElement("span");
+        sourceVal.className = "source-price-val";
+        sourceVal.textContent = formatPrice(p.sourcePrice);
+        sourceRow.appendChild(sourceLabel);
+        sourceRow.appendChild(sourceVal);
+        pricing.appendChild(sourceRow);
+      }
+
+      body.appendChild(pricing);
+
+      // 4. Metadata Box (Barcode, Source Ref, Updated At, Source Link)
+      var metaBox = document.createElement("div");
+      metaBox.className = "card-meta-box";
+
+      if (p.barcode) {
+        var barcodeRow = document.createElement("div");
+        barcodeRow.className = "meta-row";
+        var bcLabel = document.createElement("span");
+        bcLabel.className = "meta-label";
+        bcLabel.textContent = "بارکد:";
+        var bcVal = document.createElement("span");
+        bcVal.className = "meta-val barcode-val";
+        bcVal.textContent = toPersianDigits(p.barcode);
+        bcVal.title = "برای کپی بارکد کلیک کنید (" + p.barcode + ")";
+        bcVal.addEventListener("click", function (e) {
+          e.stopPropagation();
+          copyToClipboard(p.barcode, bcVal, "کپی شد! ✓");
+        });
+        barcodeRow.appendChild(bcLabel);
+        barcodeRow.appendChild(bcVal);
+        metaBox.appendChild(barcodeRow);
+      }
+
+      if (p.priceSourceRef) {
+        var refRow = document.createElement("div");
+        refRow.className = "meta-row";
+        var refLabel = document.createElement("span");
+        refLabel.className = "meta-label";
+        refLabel.textContent = "کد مرجع:";
+        var refVal = document.createElement("span");
+        refVal.className = "meta-val";
+        refVal.textContent = toPersianDigits(p.priceSourceRef);
+        refRow.appendChild(refLabel);
+        refRow.appendChild(refVal);
+        metaBox.appendChild(refRow);
+      }
+
+      if (p.updatedAt) {
+        var updateRow = document.createElement("div");
+        updateRow.className = "meta-row";
+        var upLabel = document.createElement("span");
+        upLabel.className = "meta-label";
+        upLabel.textContent = "به‌روزرسانی:";
+        var upVal = document.createElement("span");
+        upVal.className = "meta-val";
+        upVal.textContent = formatDateTime(p.updatedAt);
+        updateRow.appendChild(upLabel);
+        updateRow.appendChild(upVal);
+        metaBox.appendChild(updateRow);
+      }
+
+      if (p.priceSourceUrl) {
+        var linkRow = document.createElement("div");
+        linkRow.className = "meta-row";
+        var linkLabel = document.createElement("span");
+        linkLabel.className = "meta-label";
+        linkLabel.textContent = "منبع:";
+        var linkA = document.createElement("a");
+        linkA.className = "meta-link";
+        linkA.href = p.priceSourceUrl;
+        linkA.target = "_blank";
+        linkA.rel = "noopener noreferrer";
+        linkA.textContent = "مشاهده پیوند ↗";
+        linkRow.appendChild(linkLabel);
+        linkRow.appendChild(linkA);
+        metaBox.appendChild(linkRow);
+      }
+
+      body.appendChild(metaBox);
+
+      // 5. Details Button
+      var detailsBtn = document.createElement("button");
+      detailsBtn.className = "details-btn";
+      detailsBtn.type = "button";
+      detailsBtn.textContent = "مشخصات کامل ℹ️";
+      detailsBtn.addEventListener("click", function () { openItemDialog(p); });
+      body.appendChild(detailsBtn);
+
+      // 6. Actions (Cart Add / Stepper)
       var actions = document.createElement("div");
       actions.className = "card-actions";
       if (qty === 0) {
@@ -202,6 +463,7 @@
         actions.appendChild(stepper(id, qty));
       }
       body.appendChild(actions);
+
       card.appendChild(body);
       grid.appendChild(card);
     });
@@ -263,10 +525,16 @@
       cartItems.appendChild(empty);
     }
 
+    var totalSavings = 0;
+
     ids.forEach(function (id) {
       var p = byId[id];
       if (!p) return;
       var qty = state.cart[id];
+
+      if (p.sourcePrice && p.sourcePrice > p.price) {
+        totalSavings += (p.sourcePrice - p.price) * qty;
+      }
 
       var line = document.createElement("div");
       line.className = "cart-line";
@@ -275,9 +543,20 @@
       info.className = "cart-line-info";
       var title = document.createElement("p");
       title.textContent = p.name;
+      info.appendChild(title);
+
+      var metaParts = [];
+      if (p.storeName) metaParts.push(p.storeName);
+      if (p.barcode) metaParts.push("بارکد: " + toPersianDigits(p.barcode));
+      if (metaParts.length > 0) {
+        var meta = document.createElement("div");
+        meta.className = "cart-line-meta";
+        meta.textContent = metaParts.join(" · ");
+        info.appendChild(meta);
+      }
+
       var sub = document.createElement("small");
       sub.textContent = faNumber(qty) + " × " + formatPrice(p.price) + " = " + formatPrice(p.price * qty);
-      info.appendChild(title);
       info.appendChild(sub);
 
       var stepperBox = document.createElement("div");
@@ -292,6 +571,7 @@
       var plus = document.createElement("button");
       plus.type = "button";
       plus.textContent = "+";
+      plus.setAttribute("aria-label", "افزودن");
       plus.addEventListener("click", function () { setQty(id, qty + 1); renderCartDialog(); });
       stepperBox.appendChild(minus);
       stepperBox.appendChild(count);
@@ -303,22 +583,228 @@
     });
 
     dialogTotal.textContent = formatPrice(cartTotalPrice());
-  }
 
-  // ---------------------------------------------------------------------------
-  // Formatting
-  // ---------------------------------------------------------------------------
-
-  function faNumber(n) {
-    try {
-      return Number(n).toLocaleString("fa-IR");
-    } catch (e) {
-      return String(n);
+    if (dialogSavings && dialogSavingsTotal) {
+      if (totalSavings > 0) {
+        dialogSavings.hidden = false;
+        dialogSavingsTotal.textContent = formatPrice(totalSavings);
+      } else {
+        dialogSavings.hidden = true;
+      }
     }
   }
 
-  function formatPrice(toman) {
-    return faNumber(toman) + " تومان";
+  // ---------------------------------------------------------------------------
+  // Item Details Dialog
+  // ---------------------------------------------------------------------------
+
+  function openItemDialog(p) {
+    if (!p) return;
+
+    itemDialogTitle.textContent = "مشخصات کامل محصول";
+    itemDialogContent.innerHTML = "";
+
+    // Hero with thumbnail and quick details
+    var hero = document.createElement("div");
+    hero.className = "item-dialog-hero";
+
+    if (p.imageUrl) {
+      var img = document.createElement("img");
+      img.className = "item-dialog-img";
+      img.alt = p.name || "";
+      img.src = p.imageUrl;
+      hero.appendChild(img);
+    }
+
+    var heroInfo = document.createElement("div");
+    heroInfo.className = "item-dialog-hero-info";
+
+    var title = document.createElement("h3");
+    title.textContent = p.name;
+    heroInfo.appendChild(title);
+
+    if (p.storeName || p.diffPercentage) {
+      var tags = document.createElement("div");
+      tags.className = "card-tags";
+      if (p.storeName) {
+        var st = document.createElement("span");
+        st.className = "tag-store";
+        st.textContent = "🏪 " + p.storeName;
+        tags.appendChild(st);
+      }
+      if (p.diffPercentage) {
+        var dt = document.createElement("span");
+        dt.className = "tag-diff";
+        dt.textContent = formatDiffPercentage(p.diffPercentage);
+        tags.appendChild(dt);
+      }
+      heroInfo.appendChild(tags);
+    }
+
+    hero.appendChild(heroInfo);
+    itemDialogContent.appendChild(hero);
+
+    // Specification Table
+    var table = document.createElement("table");
+    table.className = "item-table";
+    var tbody = document.createElement("tbody");
+
+    function addRow(label, value, isRtl, actionBtn) {
+      if (value === undefined || value === null || value === "") return;
+      var tr = document.createElement("tr");
+      var th = document.createElement("th");
+      th.scope = "row";
+      th.textContent = label;
+      var td = document.createElement("td");
+      if (isRtl) td.className = "rtl-text";
+      if (typeof value === "string" || typeof value === "number") {
+        td.appendChild(document.createTextNode(String(value)));
+      } else if (value instanceof HTMLElement) {
+        td.appendChild(value);
+      }
+      if (actionBtn) {
+        td.appendChild(actionBtn);
+      }
+      tr.appendChild(th);
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+
+    addRow("نام محصول", p.name, true);
+
+    if (p.barcode) {
+      var copyBtn = document.createElement("button");
+      copyBtn.className = "copy-btn";
+      copyBtn.type = "button";
+      copyBtn.textContent = "کپی";
+      copyBtn.addEventListener("click", function () {
+        copyToClipboard(p.barcode, copyBtn, "کپی شد!");
+      });
+      addRow("بارکد (EAN-13)", toPersianDigits(p.barcode), false, copyBtn);
+    }
+
+    if (p.id != null) {
+      addRow("شناسه محصول", toPersianDigits(p.id));
+    }
+
+    if (p.storeName) {
+      addRow("فروشگاه مبدأ", p.storeName, true);
+    }
+
+    if (p.priceSourceId) {
+      addRow("شناسه منبع (Source ID)", p.priceSourceId);
+    }
+
+    if (p.priceSourceRef) {
+      addRow("کد مرجع در مبدأ", toPersianDigits(p.priceSourceRef));
+    }
+
+    if (p.price != null) {
+      addRow("قیمت فروشگاه آدونیا", formatPrice(p.price), true);
+    }
+
+    if (p.sourcePrice != null) {
+      addRow("قیمت در " + (p.storeName || "مبدأ"), formatPrice(p.sourcePrice), true);
+    }
+
+    if (p.diffPercentage) {
+      addRow("درصد اختلاف قیمت", formatDiffPercentage(p.diffPercentage));
+    }
+
+    if (p.sourcePrice != null && p.price != null && p.sourcePrice !== p.price) {
+      var diffAmount = Math.abs(p.sourcePrice - p.price);
+      var diffLabel = p.sourcePrice > p.price ? "میزان ارزان‌تر بودن" : "میزان اختلاف قیمت";
+      addRow(diffLabel, formatPrice(diffAmount), true);
+    }
+
+    if (p.createdAt) {
+      addRow("تاریخ ثبت اولیه", formatDateTimeFull(p.createdAt));
+    }
+
+    if (p.updatedAt) {
+      addRow("آخرین به‌روزرسانی", formatDateTimeFull(p.updatedAt));
+    }
+
+    if (p.priceSourceUrl) {
+      var a = document.createElement("a");
+      a.className = "meta-link";
+      a.href = p.priceSourceUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = "مشاهده پیوند اصلی ↗";
+      addRow("آدرس مرجع قیمت", a);
+    }
+
+    table.appendChild(tbody);
+    itemDialogContent.appendChild(table);
+
+    // Actions in item dialog foot
+    renderItemDialogActions(p);
+
+    if (typeof itemDialog.showModal === "function") itemDialog.showModal();
+    else itemDialog.setAttribute("open", "");
+  }
+
+  function renderItemDialogActions(p) {
+    var id = String(p.id);
+    var qty = state.cart[id] || 0;
+    itemDialogActions.innerHTML = "";
+
+    var cartBox = document.createElement("div");
+    if (qty === 0) {
+      var add = document.createElement("button");
+      add.className = "primary";
+      add.type = "button";
+      add.textContent = "افزودن به سبد خرید";
+      add.addEventListener("click", function () {
+        setQty(id, 1);
+        renderItemDialogActions(p);
+      });
+      cartBox.appendChild(add);
+    } else {
+      var wrap = document.createElement("div");
+      wrap.className = "stepper";
+
+      var minus = document.createElement("button");
+      minus.type = "button";
+      minus.textContent = "−";
+      minus.setAttribute("aria-label", "کم کردن");
+      minus.addEventListener("click", function () {
+        setQty(id, qty - 1);
+        renderItemDialogActions(p);
+      });
+
+      var count = document.createElement("strong");
+      count.textContent = faNumber(qty);
+
+      var plus = document.createElement("button");
+      plus.type = "button";
+      plus.textContent = "+";
+      plus.setAttribute("aria-label", "افزودن");
+      plus.addEventListener("click", function () {
+        setQty(id, qty + 1);
+        renderItemDialogActions(p);
+      });
+
+      wrap.appendChild(minus);
+      wrap.appendChild(count);
+      wrap.appendChild(plus);
+      cartBox.appendChild(wrap);
+    }
+
+    var closeBtn = document.createElement("button");
+    closeBtn.className = "primary";
+    closeBtn.type = "button";
+    closeBtn.textContent = "بستن";
+    closeBtn.addEventListener("click", closeItemDialogModal);
+
+    itemDialogActions.appendChild(cartBox);
+    itemDialogActions.appendChild(closeBtn);
+  }
+
+  function closeItemDialogModal() {
+    if (typeof itemDialog.close === "function") itemDialog.close();
+    else itemDialog.removeAttribute("open");
   }
 
   // ---------------------------------------------------------------------------
@@ -354,4 +840,11 @@
     render();
     renderCartDialog();
   });
+
+  if (closeItemDialog) closeItemDialog.addEventListener("click", closeItemDialogModal);
+  if (itemDialog) {
+    itemDialog.addEventListener("click", function (e) {
+      if (e.target === itemDialog) closeItemDialogModal();
+    });
+  }
 })();

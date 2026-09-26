@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="فروشگاه اینترنتی آدونیا — فهرست محصولات، جستجو و سبد خرید">
   <title>فروشگاه آدونیا</title>
+  <link rel="icon" type="image/png" href="images/logo-64.png">
+  <link rel="apple-touch-icon" href="images/logo-128.png">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
 </head>
@@ -12,7 +14,7 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
-        <span class="brand-logo" aria-hidden="true">آ</span>
+        <img class="brand-logo" src="images/logo.png" alt="فروشگاه آدونیا" width="44" height="44">
         <div>
           <h1>فروشگاه آدونیا</h1>
           <p id="metaLine" class="meta">در حال بارگذاری فهرست محصولات…</p>
@@ -61,10 +63,27 @@
         <span>مبلغ تقریبی سبد:</span>
         <strong id="dialogTotal"></strong>
       </div>
+      <div id="dialogSavings" class="savings-row" hidden>
+        <span>سود شما از خرید نسبت به مرجع:</span>
+        <strong id="dialogSavingsTotal"></strong>
+      </div>
       <p class="total-hint">مبلغ نهایی در زمان ثبت سفارش محاسبه می‌شود</p>
       <div class="dialog-actions">
         <button id="clearCart" class="danger" type="button">خالی کردن سبد</button>
         <button id="closeCart2" class="primary" type="button">بستن</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="itemDialog" class="cart-dialog" aria-label="مشخصات کامل محصول">
+    <div class="dialog-head">
+      <h2 id="itemDialogTitle">مشخصات کامل محصول</h2>
+      <button id="closeItemDialog" class="icon-btn" type="button" aria-label="بستن">✕</button>
+    </div>
+    <div id="itemDialogContent" class="item-dialog-content"></div>
+    <div class="dialog-foot">
+      <div id="itemDialogActions" class="dialog-actions">
+        <button id="closeItemDialog2" class="primary" type="button">بستن</button>
       </div>
     </div>
   </dialog>
