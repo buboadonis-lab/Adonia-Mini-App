@@ -30,8 +30,46 @@
 
   <main class="container">
     <div class="search-wrap">
-      <input id="search" type="search" placeholder="جستجو در محصولات… (نام یا بارکد)" autocomplete="off" aria-label="جستجو در محصولات">
+      <input id="search" type="search" placeholder="جستجو در محصولات… (نام یا فروشگاه)" autocomplete="off" aria-label="جستجو در محصولات">
     </div>
+
+    <section id="statsStrip" class="stats-strip" aria-label="خلاصه فهرست" hidden>
+      <div class="stat">
+        <span class="stat-val" id="statCount">—</span>
+        <span class="stat-label">محصول</span>
+      </div>
+      <div class="stat">
+        <span class="stat-val" id="statStores">—</span>
+        <span class="stat-label">فروشگاه مبدأ</span>
+      </div>
+      <div class="stat">
+        <span class="stat-val" id="statCheaper">—</span>
+        <span class="stat-label">ارزان‌تر از مبدأ</span>
+      </div>
+      <div class="stat">
+        <span class="stat-val" id="statRange">—</span>
+        <span class="stat-label">بازهٔ قیمت</span>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <div id="storeChips" class="chips" role="group" aria-label="فیلتر بر اساس فروشگاه"></div>
+      <label class="sort-wrap">
+        <span>مرتب‌سازی:</span>
+        <select id="sortSelect" aria-label="مرتب‌سازی محصولات">
+          <option value="newest">جدیدترین</option>
+          <option value="priceAsc">ارزان‌ترین</option>
+          <option value="priceDesc">گران‌ترین</option>
+          <option value="discount">بیشترین تخفیف نسبت به مبدأ</option>
+          <option value="name">نام (الفبا)</option>
+        </select>
+      </label>
+      <label class="only-deals">
+        <input id="onlyDeals" type="checkbox">
+        <span>فقط ارزان‌تر از مبدأ</span>
+      </label>
+    </div>
+
     <p id="resultMeta" class="meta" aria-live="polite"></p>
     <section id="grid" class="grid" aria-label="فهرست محصولات"></section>
     <div id="emptyState" class="empty" hidden>

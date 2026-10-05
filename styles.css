@@ -790,3 +790,135 @@ button.danger {
 .footer p {
   margin: 0;
 }
+
+/* ---------------------------------------------------------------------------
+   Feed summary, store filters & price-comparison cues (data.json v3)
+   --------------------------------------------------------------------------- */
+
+.stats-strip {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+@media (min-width: 640px) {
+  .stats-strip { grid-template-columns: repeat(4, 1fr); }
+}
+
+.stats-strip .stat {
+  background: var(--surface);
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: var(--shadow);
+}
+
+.stat-val {
+  font-weight: 800;
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+
+.stat-label {
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--outline);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.chip:hover { border-color: var(--primary); }
+
+.chip-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.sort-wrap,
+.only-deals {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  opacity: 0.95;
+}
+
+.sort-wrap select {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--outline);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.only-deals { cursor: pointer; }
+.only-deals input { accent-color: var(--primary); }
+
+.card-media {
+  position: relative;
+}
+
+.card-media .card-img { cursor: pointer; }
+
+.card-ribbon {
+  position: absolute;
+  top: 8px;
+  inset-inline-start: 8px;
+  background: #1f8a4c;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.tag-diff-down {
+  background: rgba(31, 138, 76, 0.12);
+  border-color: rgba(31, 138, 76, 0.32);
+  color: #1f8a4c;
+}
+
+.tag-diff-up {
+  background: rgba(192, 57, 43, 0.1);
+  border-color: rgba(192, 57, 43, 0.3);
+  color: #c0392b;
+}
+
+.card-delta-row {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.delta-down { color: #1f8a4c; }
+.delta-up { color: #c0392b; }

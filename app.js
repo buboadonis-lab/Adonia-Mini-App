@@ -12,7 +12,12 @@
   var state = {
     products: [],
     updatedAt: null,
+    version: null,
+    feedCount: null,
     query: "",
+    store: "all",
+    sort: "newest",
+    onlyDeals: false,
     cart: loadCart()
   };
 
@@ -20,6 +25,14 @@
   var search = document.getElementById("search");
   var metaLine = document.getElementById("metaLine");
   var resultMeta = document.getElementById("resultMeta");
+  var statsStrip = document.getElementById("statsStrip");
+  var statCount = document.getElementById("statCount");
+  var statStores = document.getElementById("statStores");
+  var statCheaper = document.getElementById("statCheaper");
+  var statRange = document.getElementById("statRange");
+  var storeChips = document.getElementById("storeChips");
+  var sortSelect = document.getElementById("sortSelect");
+  var onlyDeals = document.getElementById("onlyDeals");
   var emptyState = document.getElementById("emptyState");
   var loadError = document.getElementById("loadError");
   var cartButton = document.getElementById("cartButton");
@@ -55,7 +68,10 @@
     .then(function (feed) {
       state.products = Array.isArray(feed.products) ? feed.products : [];
       state.updatedAt = feed.updatedAt || null;
+      state.version = feed.version != null ? feed.version : null;
+      state.feedCount = feed.count != null ? feed.count : state.products.length;
       pruneCart();
+      renderStoreChips();
       render();
     })
     .catch(function () {
@@ -157,6 +173,41 @@
     return toPersianDigits(s).replace(/%/g, "٪");
   }
 
+  /** Images published by the Android app may point at a device-local path. */
+  function usableImage(url) {
+    if (!url) return null;
+    var u = String(url).trim();
+    if (/^(https?:)?\/\//.test(u)) return u;
+    if (/^images\//.test(u)) return u;
+    return null; // /data/user/0/... and other device paths are unreachable from the web
+  }
+
+  /** Positive = the Adonia price is lower than the source store price. */
+  function savingsOf(p) {
+    if (p.sourcePrice == null || p.price == null) return 0;
+    return p.sourcePrice - p.price;
+  }
+
+  function savingsRatio(p) {
+    var s = savingsOf(p);
+    if (s <= 0 || !p.sourcePrice) return 0;
+    return s / p.sourcePrice;
+  }
+
+  function storeList() {
+    var seen = {};
+    var out = [];
+    state.products.forEach(function (p) {
+      var name = p.storeName || "نامشخص";
+      if (!seen[name]) {
+        seen[name] = 0;
+        out.push(name);
+      }
+      seen[name] += 1;
+    });
+    return out.map(function (name) { return { name: name, count: seen[name] }; });
+  }
+
   function formatDateTime(ts) {
     if (!ts) return "";
     try {
@@ -232,32 +283,104 @@
 
   function filtered() {
     var q = state.query.trim().toLowerCase();
-    if (!q) return state.products;
     var qNorm = normalizeDigits(q);
-    return state.products.filter(function (p) {
+
+    var list = state.products.filter(function (p) {
+      var storeName = p.storeName || "نامشخص";
+      if (state.store !== "all" && storeName !== state.store) return false;
+      if (state.onlyDeals && savingsOf(p) <= 0) return false;
+      if (!q) return true;
       var nameMatch = p.name && p.name.toLowerCase().indexOf(q) !== -1;
+      var storeMatch = storeName.toLowerCase().indexOf(q) !== -1;
+      var priceMatch = String(p.price).indexOf(qNorm) !== -1;
       var barcodeMatch = p.barcode && (
-        p.barcode.indexOf(q) !== -1 ||
-        p.barcode.indexOf(qNorm) !== -1
+        p.barcode.indexOf(q) !== -1 || p.barcode.indexOf(qNorm) !== -1
       );
-      var storeMatch = p.storeName && p.storeName.toLowerCase().indexOf(q) !== -1;
       var refMatch = p.priceSourceRef && (
         String(p.priceSourceRef).indexOf(q) !== -1 ||
         String(p.priceSourceRef).indexOf(qNorm) !== -1
       );
-      return nameMatch || barcodeMatch || storeMatch || refMatch;
+      return nameMatch || storeMatch || priceMatch || barcodeMatch || refMatch;
     });
+
+    return sortList(list);
+  }
+
+  function sortList(list) {
+    var copy = list.slice();
+    switch (state.sort) {
+      case "priceAsc":
+        copy.sort(function (a, b) { return (a.price || 0) - (b.price || 0); });
+        break;
+      case "priceDesc":
+        copy.sort(function (a, b) { return (b.price || 0) - (a.price || 0); });
+        break;
+      case "discount":
+        copy.sort(function (a, b) { return savingsRatio(b) - savingsRatio(a); });
+        break;
+      case "name":
+        copy.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), "fa"); });
+        break;
+      default: // newest — the feed is published newest-id first
+        copy.sort(function (a, b) { return (b.id || 0) - (a.id || 0); });
+    }
+    return copy;
+  }
+
+  function renderStoreChips() {
+    if (!storeChips) return;
+    storeChips.innerHTML = "";
+    var stores = storeList();
+    var entries = [{ name: "all", label: "همه فروشگاه‌ها", count: state.products.length }];
+    stores.forEach(function (s) { entries.push({ name: s.name, label: s.name, count: s.count }); });
+
+    entries.forEach(function (entry) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip" + (state.store === entry.name ? " chip-active" : "");
+      btn.setAttribute("aria-pressed", String(state.store === entry.name));
+      btn.textContent = entry.label + " (" + faNumber(entry.count) + ")";
+      btn.addEventListener("click", function () {
+        state.store = entry.name;
+        renderStoreChips();
+        renderGrid();
+      });
+      storeChips.appendChild(btn);
+    });
+  }
+
+  function renderStats() {
+    if (!statsStrip) return;
+    if (state.products.length === 0) {
+      statsStrip.hidden = true;
+      return;
+    }
+    statsStrip.hidden = false;
+
+    var prices = state.products
+      .map(function (p) { return p.price; })
+      .filter(function (v) { return typeof v === "number"; });
+    var cheaper = state.products.filter(function (p) { return savingsOf(p) > 0; }).length;
+
+    statCount.textContent = faNumber(state.products.length);
+    statStores.textContent = faNumber(storeList().length);
+    statCheaper.textContent = faNumber(cheaper);
+    statRange.textContent = prices.length
+      ? faNumber(Math.min.apply(null, prices)) + " – " + faNumber(Math.max.apply(null, prices))
+      : "—";
   }
 
   function render() {
     renderMeta();
+    renderStats();
     renderGrid();
     renderCartChrome();
   }
 
   function renderMeta() {
     var parts = [];
-    parts.push(faNumber(state.products.length) + " محصول");
+    parts.push(faNumber(state.feedCount != null ? state.feedCount : state.products.length) + " محصول");
+    if (state.version != null) parts.push("نسخهٔ فهرست " + toPersianDigits(state.version));
     if (state.updatedAt) {
       try {
         parts.push("به‌روزرسانی: " + new Date(state.updatedAt).toLocaleString("fa-IR"));
@@ -275,8 +398,12 @@
       emptyState.hidden = loadError.hidden === false;
       return;
     }
-    resultMeta.textContent = state.query.trim()
-      ? faNumber(list.length) + " نتیجه برای «" + state.query.trim() + "»"
+    var bits = [];
+    if (state.query.trim()) bits.push("جستجوی «" + state.query.trim() + "»");
+    if (state.store !== "all") bits.push("فروشگاه " + state.store);
+    if (state.onlyDeals) bits.push("فقط ارزان‌تر از مبدأ");
+    resultMeta.textContent = bits.length
+      ? faNumber(list.length) + " نتیجه · " + bits.join(" · ")
       : "";
     emptyState.hidden = list.length !== 0;
 
@@ -287,21 +414,33 @@
       var card = document.createElement("article");
       card.className = "card";
 
-      // Product Image
-      if (p.imageUrl) {
+      // Product Image (device-local paths from the app are not reachable on the web)
+      var media = document.createElement("div");
+      media.className = "card-media";
+      var src = usableImage(p.imageUrl);
+      if (src) {
         var img = document.createElement("img");
         img.className = "card-img";
         img.loading = "lazy";
         img.alt = p.name || "";
-        img.src = p.imageUrl;
-        img.style.cursor = "pointer";
+        img.src = src;
         img.title = "مشاهده مشخصات کامل محصول";
         img.addEventListener("click", function () { openItemDialog(p); });
-        img.onerror = function () { img.remove(); card.prepend(placeholder()); };
-        card.appendChild(img);
+        img.onerror = function () { img.remove(); media.prepend(placeholder()); };
+        media.appendChild(img);
       } else {
-        card.appendChild(placeholder());
+        media.appendChild(placeholder());
       }
+
+      var saving = savingsOf(p);
+      if (saving > 0) {
+        var ribbon = document.createElement("span");
+        ribbon.className = "card-ribbon";
+        ribbon.textContent = toPersianDigits(Math.round(savingsRatio(p) * 100)) + "٪ ارزان‌تر";
+        ribbon.title = formatPrice(saving) + " ارزان‌تر از " + (p.storeName || "مبدأ");
+        media.appendChild(ribbon);
+      }
+      card.appendChild(media);
 
       var body = document.createElement("div");
       body.className = "card-body";
@@ -320,10 +459,15 @@
         }
 
         if (p.diffPercentage) {
+          var saved = savingsOf(p);
           var diffTag = document.createElement("span");
-          diffTag.className = "tag-diff";
-          diffTag.title = "درصد اختلاف قیمت نسبت به مبدأ";
-          diffTag.textContent = formatDiffPercentage(p.diffPercentage);
+          diffTag.className = "tag-diff " + (saved > 0 ? "tag-diff-down" : saved < 0 ? "tag-diff-up" : "");
+          diffTag.title = saved > 0
+            ? "نسبت به " + (p.storeName || "مبدأ") + " ارزان‌تر است"
+            : saved < 0
+              ? "نسبت به " + (p.storeName || "مبدأ") + " گران‌تر است"
+              : "درصد اختلاف قیمت نسبت به مبدأ";
+          diffTag.textContent = (saved > 0 ? "▼ " : saved < 0 ? "▲ " : "") + formatDiffPercentage(p.diffPercentage);
           tags.appendChild(diffTag);
         }
 
@@ -355,6 +499,16 @@
       priceRow.appendChild(priceVal);
       pricing.appendChild(priceRow);
 
+      if (p.sourcePrice != null && p.sourcePrice === p.price) {
+        var sameRow = document.createElement("div");
+        sameRow.className = "card-source-row";
+        var sameLabel = document.createElement("span");
+        sameLabel.className = "source-label";
+        sameLabel.textContent = "برابر با قیمت " + (p.storeName || "مبدأ");
+        sameRow.appendChild(sameLabel);
+        pricing.appendChild(sameRow);
+      }
+
       if (p.sourcePrice != null && p.sourcePrice !== p.price) {
         var sourceRow = document.createElement("div");
         sourceRow.className = "card-source-row";
@@ -367,6 +521,11 @@
         sourceRow.appendChild(sourceLabel);
         sourceRow.appendChild(sourceVal);
         pricing.appendChild(sourceRow);
+
+        var deltaRow = document.createElement("div");
+        deltaRow.className = "card-delta-row " + (saving > 0 ? "delta-down" : "delta-up");
+        deltaRow.textContent = (saving > 0 ? "سود شما: " : "اختلاف: ") + formatPrice(Math.abs(saving));
+        pricing.appendChild(deltaRow);
       }
 
       body.appendChild(pricing);
@@ -439,7 +598,7 @@
         metaBox.appendChild(linkRow);
       }
 
-      body.appendChild(metaBox);
+      if (metaBox.childNodes.length > 0) body.appendChild(metaBox);
 
       // 5. Details Button
       var detailsBtn = document.createElement("button");
@@ -608,12 +767,16 @@
     var hero = document.createElement("div");
     hero.className = "item-dialog-hero";
 
-    if (p.imageUrl) {
+    var dialogSrc = usableImage(p.imageUrl);
+    if (dialogSrc) {
       var img = document.createElement("img");
       img.className = "item-dialog-img";
       img.alt = p.name || "";
-      img.src = p.imageUrl;
+      img.src = dialogSrc;
+      img.onerror = function () { img.replaceWith(placeholder()); };
       hero.appendChild(img);
+    } else {
+      hero.appendChild(placeholder());
     }
 
     var heroInfo = document.createElement("div");
@@ -633,9 +796,10 @@
         tags.appendChild(st);
       }
       if (p.diffPercentage) {
+        var saved2 = savingsOf(p);
         var dt = document.createElement("span");
-        dt.className = "tag-diff";
-        dt.textContent = formatDiffPercentage(p.diffPercentage);
+        dt.className = "tag-diff " + (saved2 > 0 ? "tag-diff-down" : saved2 < 0 ? "tag-diff-up" : "");
+        dt.textContent = (saved2 > 0 ? "▼ " : saved2 < 0 ? "▲ " : "") + formatDiffPercentage(p.diffPercentage);
         tags.appendChild(dt);
       }
       heroInfo.appendChild(tags);
@@ -815,6 +979,20 @@
     state.query = search.value;
     renderGrid();
   });
+
+  if (sortSelect) {
+    sortSelect.addEventListener("change", function () {
+      state.sort = sortSelect.value;
+      renderGrid();
+    });
+  }
+
+  if (onlyDeals) {
+    onlyDeals.addEventListener("change", function () {
+      state.onlyDeals = onlyDeals.checked;
+      renderGrid();
+    });
+  }
 
   function openCart() {
     renderCartDialog();
